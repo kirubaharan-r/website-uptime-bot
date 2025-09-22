@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"time"
 	"uptime-monitor/internal/models"
 	"uptime-monitor/internal/monitoring"
@@ -12,6 +13,11 @@ import (
 func main() {
 	fmt.Println("Uptime Monitor Starting...")
 
+	addr := os.Getenv("UPTIME_MONITOR_ADDR")
+	if addr == "" {
+		addr = ":8080"
+	}
+
 	s := store.NewInMemoryStore()
 
 	s.AddWebsite(models.Website{ID: 1, Name: "Google", URL: "https://www.google.com"})
@@ -21,5 +27,5 @@ func main() {
 	ticker := time.NewTicker(1 * time.Minute)
 	go monitoring.StartMonitoring(s, ticker)
 
-	server.StartServer(s)
+	server.StartServer(s, addr)
 }
