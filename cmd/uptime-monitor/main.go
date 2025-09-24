@@ -1,31 +1,45 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
-	"os"
+	"log"
 	"time"
-	"uptime-monitor/internal/models"
-	"uptime-monitor/internal/monitoring"
-	"uptime-monitor/internal/server"
-	"uptime-monitor/internal/store"
+	"uptime-monitor/pkg/api"
+	"uptime-monitor/pkg/config"
+	"uptime-monitor/pkg/monitoring"
+	"uptime-monitor/pkg/storage"
 )
 
 func main() {
 	fmt.Println("Uptime Monitor Starting...")
 
-	addr := os.Getenv("UPTIME_MONITOR_ADDR")
-	if addr == "" {
-		addr = ":8080"
+	cfg, err := config.LoadConfig("config.json")
+	if err != nil {
+		log.Fatalf("Error loading config: %s", err)
 	}
 
-	s := store.NewInMemoryStore()
+	db, err := sql.Open("sqlite3", cfg.DBPath)
+	if err != nil {
+		log.Fatalf("Error opening database: %s", err)
+	}
 
-	s.AddWebsite(models.Website{ID: 1, Name: "Google", URL: "https://www.google.com"})
-	s.AddWebsite(models.Website{ID: 2, Name: "GitHub", URL: "https://www.github.com"})
-	s.AddWebsite(models.Website{ID: 3, Name: "Invalid URL", URL: "https://a-very-invalid-url.com"})
+	store, err := storage.NewSQLiteStore(db)
+	if err != nil {
+		log.Fatalf("Error creating store: %s", err)
+	}
+
+	for _, website := range cfg.Websites {
+		if err := store.AddWebsite(website); err != nil {
+			log.Printf("Error adding website %s: %s", website.URL, err)
+		}
+	}
 
 	ticker := time.NewTicker(1 * time.Minute)
-	go monitoring.StartMonitoring(s, ticker)
+	go monitoring.StartMonitoring(store, ticker)
 
-	server.StartServer(s, addr)
+	server := api.NewServer(cfg.Addr, store)
+	if err := server.Start(); err != nil {
+		log.Fatalf("Error starting server: %s", err)
+	}
 }

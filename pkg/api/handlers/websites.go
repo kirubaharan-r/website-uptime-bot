@@ -1,33 +1,24 @@
-package server
+package handlers
 
 import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"uptime-monitor/internal/models"
-	"uptime-monitor/internal/monitoring"
-	"uptime-monitor/internal/store"
+	"uptime-monitor/pkg/models"
+	"uptime-monitor/pkg/monitoring"
+	"uptime-monitor/pkg/storage"
 )
 
 type websiteStatus struct {
-	Website      models.Website `json:"website"`
-	Status       string         `json:"status"`
-	ResponseTime string         `json:"response_time"`
+	Website      models.Website        `json:"website"`
+	Status       string                `json:"status"`
+	ResponseTime string                `json:"response_time"`
+	Headers      map[string][]string   `json:"headers"`
+	SSLInfo      *models.SSLInfo       `json:"ssl_info"`
 }
 
-// StartServer starts the web server.
-func StartServer(s *store.InMemoryStore, addr string) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/status", apiStatusHandler(s))
-	mux.HandleFunc("/api/check", apiCheckHandler())
-
-	fmt.Printf("Starting web server on %s\n", addr)
-	if err := http.ListenAndServe(addr, mux); err != nil {
-		fmt.Printf("Error starting server: %s\n", err)
-	}
-}
-
-func apiCheckHandler() http.HandlerFunc {
+// CheckHandler handles the checking of websites.
+func CheckHandler(store storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
@@ -49,6 +40,8 @@ func apiCheckHandler() http.HandlerFunc {
 				},
 				Status:       check.Status,
 				ResponseTime: fmt.Sprintf("%.2fms", float64(check.ResponseTime.Nanoseconds())/1e6),
+				Headers:      check.Headers,
+				SSLInfo:      check.SSLInfo,
 			}
 		}
 
@@ -57,12 +50,21 @@ func apiCheckHandler() http.HandlerFunc {
 	}
 }
 
-func apiStatusHandler(s *store.InMemoryStore) http.HandlerFunc {
+// StatusHandler handles the status of websites.
+func StatusHandler(store storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		websites := s.GetWebsites()
+		websites, err := store.GetWebsites()
+		if err != nil {
+			http.Error(w, "Error getting websites", http.StatusInternalServerError)
+			return
+		}
 		status := make([]websiteStatus, len(websites))
 		for i, website := range websites {
-			check, ok := s.GetLatestCheck(website.ID)
+			check, ok, err := store.GetLatestCheck(website.ID)
+			if err != nil {
+				http.Error(w, "Error getting latest check", http.StatusInternalServerError)
+				return
+			}
 			if !ok {
 				continue
 			}
@@ -70,6 +72,8 @@ func apiStatusHandler(s *store.InMemoryStore) http.HandlerFunc {
 				Website:      website,
 				Status:       check.Status,
 				ResponseTime: fmt.Sprintf("%.2fms", float64(check.ResponseTime.Nanoseconds())/1e6),
+				Headers:      check.Headers,
+				SSLInfo:      check.SSLInfo,
 			}
 		}
 

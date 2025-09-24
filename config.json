@@ -1,0 +1,18 @@
+{
+	"addr": ":8080",
+	"db_path": "uptime.db",
+	"websites": [
+		{
+			"name": "Google",
+			"url": "https://www.google.com"
+		},
+		{
+			"name": "GitHub",
+			"url": "https://www.github.com"
+		},
+		{
+			"name": "Invalid URL",
+			"url": "https://a-very-invalid-url.com"
+		}
+	]
+}
