@@ -35,6 +35,8 @@ func main() {
 		}
 	}
 
+	fmt.Println("Database and websites created successfully")
+
 	ticker := time.NewTicker(1 * time.Minute)
 	go monitoring.StartMonitoring(store, ticker)
 

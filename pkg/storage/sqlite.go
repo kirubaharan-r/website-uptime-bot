@@ -3,6 +3,7 @@ package storage
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	_ "github.com/mattn/go-sqlite3"
 	"uptime-monitor/pkg/models"
 )
@@ -21,6 +22,12 @@ func NewSQLiteStore(db *sql.DB) (*SQLiteStore, error) {
 			name TEXT NOT NULL,
 			url TEXT NOT NULL
 		);
+	`)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS checks (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			website_id INTEGER NOT NULL,
@@ -96,11 +103,15 @@ func (s *SQLiteStore) GetLatestCheck(websiteID int) (models.Check, bool, error) 
 		return models.Check{}, false, err
 	}
 
-	if err := json.Unmarshal(headers, &check.Headers); err != nil {
-		return models.Check{}, false, err
+	if headers != nil {
+		if err := json.Unmarshal(headers, &check.Headers); err != nil {
+			return models.Check{}, false, err
+		}
 	}
-	if err := json.Unmarshal(sslInfo, &check.SSLInfo); err != nil {
-		return models.Check{}, false, err
+	if sslInfo != nil {
+		if err := json.Unmarshal(sslInfo, &check.SSLInfo); err != nil {
+			return models.Check{}, false, err
+		}
 	}
 
 	return check, true, nil
